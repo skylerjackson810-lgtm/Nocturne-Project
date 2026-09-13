@@ -1,0 +1,42 @@
+name: Build iOS IPA
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Xcode
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+    - name: Create Dummy Info.plist Values
+      run: |
+        # Ensure a minimal build profile works without mandatory team provisioning profiles
+        sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' Nocturne/Nocturne.xcodeproj/project.pbxproj || true
+
+    - name: Build Archive
+      run: |
+        xcodebuild -project Nocturne/Nocturne.xcodeproj \
+                   -scheme Nocturne                    -configuration Release \
+                   -sdk iphoneos \
+                   -archivePath $PWD/build/Nocturne.xcarchive \
+                   clean archive \
+                   CODE_SIGNING_ALLOWED=NO \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGN_IDENTITY="" \
+                   PROVISIONING_PROFILE_SPECIFIER=""
+
+    - name: Package IPA Manually
+      run: |
+        mkdir -p Payload
+        cp -r build/Nocturne.xcarchive/Products/Applications/Nocturne.app Payload/
+        zip -r Nocturne.ipa Payload
+
+    - name: Upload IPA Artifact
+      uses: actions/artifacts/upload-artifact@v4
+      with:
+        name: Nocturne-IPA
+        path: Nocturne.ipa
